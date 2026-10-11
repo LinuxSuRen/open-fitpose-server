@@ -1,0 +1,39 @@
+name: build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -race ./...
+      - name: Build
+        run: go build ./...
+
+  # onnxruntime 动态库链接可能因外部发布变化而失败，构建为可选门禁
+  onnx-compile:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - name: 下载 onnxruntime
+        run: bash scripts/setup-onnx.sh /tmp/ort
+      - name: 编译 onnx 构建
+        run: |
+          source /tmp/ort/env.sh
+          go build -tags onnx ./...

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FitPose 姿态识别</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>FitPose 姿态识别</h1>
+    <div class="badges">
+      <span id="conn-badge" class="badge">未连接</span>
+      <span id="provider-badge" class="badge" hidden></span>
+    </div>
+  </header>
+
+  <main>
+    <section class="stage">
+      <video id="cam" autoplay playsinline muted hidden></video>
+      <canvas id="overlay"></canvas>
+      <p id="stage-tip" class="stage-tip">点击「开启摄像头」开始</p>
+    </section>
+
+    <aside class="panel">
+      <div class="counts">
+        <div class="count-card"><span class="num" id="count-squat">0</span><span class="label">深蹲</span><span class="stage" id="stage-squat"></span></div>
+        <div class="count-card"><span class="num" id="count-pushup">0</span><span class="label">俯卧撑</span><span class="stage" id="stage-pushup"></span></div>
+        <div class="count-card"><span class="num" id="count-jack">0</span><span class="label">开合跳</span><span class="stage" id="stage-jack"></span></div>
+      </div>
+
+      <ul id="tips" class="tips"></ul>
+
+      <div class="conn-form">
+        <label for="ws-url">服务地址</label>
+        <input id="ws-url" type="text" spellcheck="false">
+        <label for="ws-token">访问令牌（可选）</label>
+        <input id="ws-token" type="password" placeholder="服务端未启用鉴权则留空">
+        <div class="btn-row">
+          <button id="btn-cam">开启摄像头</button>
+          <button id="btn-connect">连接服务</button>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

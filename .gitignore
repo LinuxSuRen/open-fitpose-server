@@ -1,0 +1,5 @@
+bin/
+*.test
+*.out
+models/
+.DS_Store
