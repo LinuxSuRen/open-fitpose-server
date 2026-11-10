@@ -23,14 +23,18 @@ import (
 
 func main() {
 	var (
-		addr          = flag.String("addr", ":8080", "HTTP 监听地址")
-		providerName  = flag.String("provider", "mock", "推理提供者: mock | onnx")
-		modelPath     = flag.String("model", "", "onnx: 姿态模型路径")
-		inputName     = flag.String("input-name", "input", "onnx: 模型输入名")
-		outputName    = flag.String("output-name", "output", "onnx: 模型输出名")
-		inputSize     = flag.Int("input-size", 256, "onnx: 模型输入边长")
-		apiKey        = flag.String("api-key", "", "非空时启用 Bearer/query token 鉴权")
-		maxFrameBytes = flag.Int64("max-frame-bytes", 3<<20, "单帧图像大小上限")
+		addr           = flag.String("addr", ":8080", "HTTP 监听地址")
+		providerName   = flag.String("provider", "mock", "推理提供者: mock | onnx")
+		modelPath      = flag.String("model", "", "onnx: 姿态模型路径")
+		inputName      = flag.String("input-name", "", "onnx: 模型输入名（空=自动取模型第一个输入）")
+		outputName     = flag.String("output-name", "", "onnx: 模型输出名（空=自动取模型第一个输出）")
+		inputSize      = flag.Int("input-size", 256, "onnx: 模型输入边长（模型固定尺寸时自动采用）")
+		inputLayout    = flag.String("input-layout", "", "onnx: 输入布局 nchw|nhwc（空=按模型维度自动探测）")
+		keypointLayout = flag.String("keypoint-layout", "movenet", "onnx: 关键点三元组布局 movenet(y,x,score)|xy(x,y,score)")
+		normalize      = flag.Bool("normalize-input", false, "onnx: 输入像素归一化 0..1（movenet 布局默认 0..255，此开关强制 0..1）")
+		ortLib         = flag.String("ort-lib", os.Getenv("ONNXRUNTIME_LIBRARY"), "onnx: onnxruntime 动态库路径（默认取 ONNXRUNTIME_LIBRARY 环境变量）")
+		apiKey         = flag.String("api-key", "", "非空时启用 Bearer/query token 鉴权")
+		maxFrameBytes  = flag.Int64("max-frame-bytes", 3<<20, "单帧图像大小上限")
 	)
 	flag.Parse()
 
@@ -41,12 +45,22 @@ func main() {
 	case "mock":
 		provider = pose.NewMockProvider()
 	case "onnx":
-		p, err := onnx.New(onnx.Options{
-			ModelPath:  *modelPath,
-			InputName:  *inputName,
-			OutputName: *outputName,
-			InputSize:  *inputSize,
+		opts := onnx.Options{
+			ModelPath:   *modelPath,
+			InputName:   *inputName,
+			OutputName:  *outputName,
+			InputSize:   *inputSize,
+			Layout:      *keypointLayout,
+			InputLayout: *inputLayout,
+			ORTLibPath:  *ortLib,
+		}
+		// 仅当用户显式传入 --normalize-input 时才覆盖自动推断
+		flag.Visit(func(f *flag.Flag) {
+			if f.Name == "normalize-input" {
+				opts.Normalize = normalize
+			}
 		})
+		p, err := onnx.New(opts)
 		if err != nil {
 			logger.Error("init onnx provider failed", "err", err)
 			os.Exit(1)

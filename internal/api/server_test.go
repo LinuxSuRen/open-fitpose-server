@@ -226,6 +226,44 @@ func TestWSAuth(t *testing.T) {
 	}
 }
 
+func TestWSSelectAction(t *testing.T) {
+	ts := newTestServer(t, api.Options{})
+	conn := dialWS(t, wsURL(ts), "")
+	frame := base64.StdEncoding.EncodeToString([]byte("fake-frame"))
+
+	// 选择深蹲 → selected 回执
+	_ = conn.WriteJSON(map[string]any{"type": "select", "action": "squat"})
+	msg := recvMsg(t, conn)
+	if msg["type"] != "selected" || msg["action"] != "squat" {
+		t.Fatalf("want selected/squat, got %v", msg)
+	}
+
+	// pose 应答的 analysis 只含 squat
+	_ = conn.WriteJSON(map[string]any{"type": "frame", "seq": 1, "data": frame})
+	msg = recvMsg(t, conn)
+	analysis, _ := msg["analysis"].(map[string]any)
+	if _, ok := analysis["squat"]; !ok {
+		t.Fatalf("analysis missing squat: %v", analysis)
+	}
+	if len(analysis) != 1 {
+		t.Fatalf("analysis should contain only squat, got %v", analysis)
+	}
+
+	// 恢复全部
+	_ = conn.WriteJSON(map[string]any{"type": "select", "action": "all"})
+	msg = recvMsg(t, conn)
+	if msg["type"] != "selected" || msg["action"] != "all" {
+		t.Fatalf("want selected/all, got %v", msg)
+	}
+
+	// 非法动作 → UNKNOWN_ACTION
+	_ = conn.WriteJSON(map[string]any{"type": "select", "action": "yoga"})
+	msg = recvMsg(t, conn)
+	if msg["type"] != "error" || msg["code"] != "UNKNOWN_ACTION" {
+		t.Fatalf("want UNKNOWN_ACTION, got %v", msg)
+	}
+}
+
 func TestWSDetectError(t *testing.T) {
 	// 注入始终失败的提供者，验证 INFERENCE_FAILED 透出为错误码
 	ts := newTestServer(t, api.Options{Provider: failingProvider{}})

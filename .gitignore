@@ -3,3 +3,4 @@ bin/
 *.out
 models/
 .DS_Store
+.cache/

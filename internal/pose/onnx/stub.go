@@ -13,11 +13,14 @@ import (
 
 // Options 与 onnx 构建下保持同构，便于 main 无差别调用。
 type Options struct {
-	ModelPath  string
-	InputName  string
-	OutputName string
-	InputSize  int
-	Layout     string
+	ModelPath   string
+	InputName   string
+	OutputName  string
+	InputSize   int
+	Layout      string
+	InputLayout string
+	Normalize   *bool
+	ORTLibPath  string
 }
 
 // Provider 占位提供者，永远返回构建提示错误。

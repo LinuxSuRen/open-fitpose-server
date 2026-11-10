@@ -25,10 +25,11 @@ const (
 
 // clientMessage 客户端上行消息（type 分发）。
 type clientMessage struct {
-	Type   string `json:"type"`             // hello | frame | ping
+	Type   string `json:"type"`             // hello | frame | select | ping
 	Seq    int64  `json:"seq,omitempty"`    // frame：客户端自增序号，原样回传
 	Format string `json:"format,omitempty"` // frame：图像编码，当前支持 jpeg
 	Data   string `json:"data,omitempty"`   // frame：base64 图像
+	Action string `json:"action,omitempty"` // select：squat|pushup|jumping_jack|all
 	TS     int64  `json:"ts,omitempty"`     // ping：客户端时间戳
 }
 
@@ -45,6 +46,7 @@ type serverMessage struct {
 	ServerMS      int64             `json:"server_ms,omitempty"`
 	Code          string            `json:"code,omitempty"`
 	Detail        string            `json:"detail,omitempty"`
+	Action        string            `json:"action,omitempty"` // selected：当前生效的动作选择
 	TS            int64             `json:"ts,omitempty"`
 }
 
@@ -74,13 +76,14 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 
 // wsSession 单个 WS 会话：读循环 + 处理循环 + 心跳。
 type wsSession struct {
-	srv       *Server
-	conn      *websocket.Conn
-	analyzer  *analyze.Analyzer
-	frames    chan clientMessage // 容量 1，始终保留最新帧（背压：丢弃旧帧）
-	closed    chan struct{}
-	writeMu   sync.Mutex
-	closeOnce sync.Once
+	srv        *Server
+	conn       *websocket.Conn
+	analyzer   *analyze.Analyzer
+	analyzerMu sync.Mutex         // 保护 analyzer（读循环 select 与处理循环 update 并发访问）
+	frames     chan clientMessage // 容量 1，始终保留最新帧（背压：丢弃旧帧）
+	closed     chan struct{}
+	writeMu    sync.Mutex
+	closeOnce  sync.Once
 }
 
 // run 阻塞直到会话结束。
@@ -138,6 +141,8 @@ func (sess *wsSession) readLoop(errCh chan<- error) {
 			})
 		case "ping":
 			sess.sendJSON(serverMessage{Type: "pong", TS: msg.TS})
+		case "select":
+			sess.handleSelect(msg)
 		case "frame":
 			if msg.Format != "" && msg.Format != "jpeg" {
 				sess.sendError(msg.Seq, "UNSUPPORTED_FORMAT", "only jpeg is supported")
@@ -148,6 +153,27 @@ func (sess *wsSession) readLoop(errCh chan<- error) {
 			sess.sendError(0, "BAD_MESSAGE", "unknown message type")
 		}
 	}
+}
+
+// handleSelect 处理动作选择：action 为 squat/pushup/jumping_jack，
+// "all" 或空表示恢复全部动作。选择后 pose 应答的 analysis 只含所选动作。
+func (sess *wsSession) handleSelect(msg clientMessage) {
+	action := msg.Action
+	if action == "all" {
+		action = ""
+	}
+	sess.analyzerMu.Lock()
+	err := sess.analyzer.Select(action)
+	sess.analyzerMu.Unlock()
+	if err != nil {
+		sess.sendError(0, "UNKNOWN_ACTION", "action must be squat|pushup|jumping_jack|all")
+		return
+	}
+	echo := action
+	if echo == "" {
+		echo = "all"
+	}
+	sess.sendJSON(serverMessage{Type: "selected", Action: echo})
 }
 
 // pushFrame 只保留最新待处理帧：挤掉未处理的旧帧再入队。
@@ -187,7 +213,9 @@ func (sess *wsSession) processFrame(msg clientMessage) {
 		sess.sendError(msg.Seq, "INFERENCE_FAILED", err.Error())
 		return
 	}
+	sess.analyzerMu.Lock()
 	analysis, tips := sess.analyzer.Update(p)
+	sess.analyzerMu.Unlock()
 	sess.sendJSON(serverMessage{
 		Type:      "pose",
 		Seq:       msg.Seq,
