@@ -34,6 +34,19 @@ WebSocket 端点：`GET /api/v1/ws/pose`（升级请求）。
 - `format`：图像编码，当前仅支持 `jpeg`。
 - `data`：图像的 base64（标准编码，不带 data: 前缀）。
 
+### select
+
+选择要计数的动作。选择后 `pose` 应答中的 `analysis` 只包含所选动作，
+提示 `tips` 也只来自所选动作；各动作历史计数保留，切换不清零。
+
+```json
+{"type": "select", "action": "squat"}
+```
+
+- `action`：`squat` / `pushup` / `jumping_jack` / `all`（恢复全部，默认全部）。
+- 服务端应答 `{"type": "selected", "action": "squat"}`（选择 all 时回 `all`）。
+- 未选择时行为与 v1 一致：`analysis` 包含全部动作。
+
 ### ping
 
 ```json
@@ -80,6 +93,8 @@ WebSocket 端点：`GET /api/v1/ws/pose`（升级请求）。
 
 - `keypoints`：固定 17 项，`x`/`y` 为相对原图宽高的归一化坐标（[0,1]），
   `score` 为置信度（低于 0.3 的点不应参与展示与判定）。
+- `analysis`：已 `select` 动作时只含所选动作字段；未选择时含全部三项
+  （如上例）。未出现的字段表示该动作当前未参与分析。
 - `analysis.stage`：`idle` / `up` / `down`（深蹲、俯卧撑）或
   `idle` / `open` / `closed`（开合跳）。
 - `server_ms`：服务端处理本帧耗时。
@@ -104,6 +119,7 @@ WebSocket 端点：`GET /api/v1/ws/pose`（升级请求）。
 | `BAD_FRAME` | base64 解码失败或空帧 | 检查采集与编码逻辑 |
 | `FRAME_TOO_LARGE` | 帧超过大小上限 | 降低分辨率或压缩质量 |
 | `INFERENCE_FAILED` | 推理后端失败 | 提示服务暂不可用，自动重试 |
+| `UNKNOWN_ACTION` | `select` 的 action 非法 | 检查动作取值 |
 
 ## 姿态提示 code
 

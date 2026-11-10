@@ -161,6 +161,54 @@ func TestJumpingJackArmTip(t *testing.T) {
 	}
 }
 
+func TestSelectAction(t *testing.T) {
+	// 非法动作被拒绝
+	an := NewAnalyzer()
+	if err := an.Select("yoga"); err == nil {
+		t.Fatal("select unknown action should fail")
+	}
+
+	// 选择深蹲后：只更新并下发深蹲，其他动作不计数
+	if err := an.Select(ActionSquat); err != nil {
+		t.Fatal(err)
+	}
+	if an.Selected() != ActionSquat {
+		t.Fatalf("selected = %s, want squat", an.Selected())
+	}
+	// 深蹲两个周期 + 开合跳两个周期（不应被计数）
+	for i := 0; i < 2; i++ {
+		analysis, _ := an.Update(squatPose(170, 170))
+		analysis, _ = an.Update(squatPose(85, 170))
+		analysis, _ = an.Update(squatPose(170, 170))
+		if analysis.Squat == nil {
+			t.Fatal("selected squat missing in analysis")
+		}
+		if analysis.PushUp != nil || analysis.JumpingJack != nil {
+			t.Fatalf("unselected actions should be nil, got %+v", analysis)
+		}
+		_, _ = an.Update(jackPose(true))
+		_, _ = an.Update(jackPose(false))
+	}
+	if an.squat.count != 2 {
+		t.Fatalf("squat count = %d, want 2", an.squat.count)
+	}
+	if an.jumpingJack.count != 0 {
+		t.Fatalf("jumping jack count = %d, want 0 (not selected)", an.jumpingJack.count)
+	}
+
+	// 恢复全部：analysis 含三个动作，历史计数保留
+	if err := an.Select(""); err != nil {
+		t.Fatal(err)
+	}
+	analysis, _ := an.Update(squatPose(170, 170))
+	if analysis.Squat == nil || analysis.PushUp == nil || analysis.JumpingJack == nil {
+		t.Fatalf("select all should fill every action, got %+v", analysis)
+	}
+	if analysis.Squat.Count != 2 {
+		t.Fatalf("squat count = %d, want 2 (kept)", analysis.Squat.Count)
+	}
+}
+
 // jackPose 生成开合跳 open/closed 关键姿态。
 func jackPose(open bool) pose.Pose {
 	p := mkPose(nil)

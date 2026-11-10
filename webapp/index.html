@@ -23,10 +23,17 @@
     </section>
 
     <aside class="panel">
+      <div class="action-picker" id="action-picker">
+        <button data-action="all" class="action-btn active">全部</button>
+        <button data-action="squat" class="action-btn">深蹲</button>
+        <button data-action="pushup" class="action-btn">俯卧撑</button>
+        <button data-action="jumping_jack" class="action-btn">开合跳</button>
+      </div>
+
       <div class="counts">
-        <div class="count-card"><span class="num" id="count-squat">0</span><span class="label">深蹲</span><span class="stage" id="stage-squat"></span></div>
-        <div class="count-card"><span class="num" id="count-pushup">0</span><span class="label">俯卧撑</span><span class="stage" id="stage-pushup"></span></div>
-        <div class="count-card"><span class="num" id="count-jack">0</span><span class="label">开合跳</span><span class="stage" id="stage-jack"></span></div>
+        <div class="count-card" id="card-squat"><span class="num" id="count-squat">0</span><span class="label">深蹲</span><span class="stage" id="stage-squat"></span></div>
+        <div class="count-card" id="card-pushup"><span class="num" id="count-pushup">0</span><span class="label">俯卧撑</span><span class="stage" id="stage-pushup"></span></div>
+        <div class="count-card" id="card-jack"><span class="num" id="count-jack">0</span><span class="label">开合跳</span><span class="stage" id="stage-jack"></span></div>
       </div>
 
       <ul id="tips" class="tips"></ul>

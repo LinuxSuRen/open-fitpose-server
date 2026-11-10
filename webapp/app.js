@@ -48,6 +48,12 @@ const els = {
   wsToken: document.getElementById("ws-token"),
   btnCam: document.getElementById("btn-cam"),
   btnConnect: document.getElementById("btn-connect"),
+  actionPicker: document.getElementById("action-picker"),
+  cards: {
+    squat: document.getElementById("card-squat"),
+    pushup: document.getElementById("card-pushup"),
+    jumping_jack: document.getElementById("card-jack"),
+  },
   counts: {
     squat: { num: document.getElementById("count-squat"), stage: document.getElementById("stage-squat") },
     pushup: { num: document.getElementById("count-pushup"), stage: document.getElementById("stage-pushup") },
@@ -63,11 +69,35 @@ const state = {
   cameraOn: false,
   keypoints: null,
   frameTimer: null,
+  action: "all", // 当前选择计数的动作：all | squat | pushup | jumping_jack
 };
 
 els.wsUrl.value = defaultWsUrl();
 els.btnCam.addEventListener("click", toggleCamera);
 els.btnConnect.addEventListener("click", connect);
+els.actionPicker.addEventListener("click", (ev) => {
+  const btn = ev.target.closest(".action-btn");
+  if (!btn) return;
+  selectAction(btn.dataset.action);
+});
+
+// 选择要计数的动作：更新 UI 并同步服务端（连接后生效，重连后自动重发）
+function selectAction(action) {
+  if (state.action === action) return;
+  state.action = action;
+  for (const btn of els.actionPicker.querySelectorAll(".action-btn")) {
+    btn.classList.toggle("active", btn.dataset.action === action);
+  }
+  for (const [name, card] of Object.entries(els.cards)) {
+    card.classList.toggle("dimmed", action !== "all" && name !== action);
+  }
+  sendSelect();
+}
+
+function sendSelect() {
+  if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+  state.ws.send(JSON.stringify({ type: "select", action: state.action }));
+}
 
 function defaultWsUrl() {
   const { protocol, hostname } = location;
@@ -93,6 +123,8 @@ function connect() {
     state.retry = 0;
     setConn("open");
     ws.send(JSON.stringify({ type: "hello", protocol: 1, client: "web" }));
+    // 重连后恢复动作选择（默认 all 无需下发）
+    if (state.action !== "all") sendSelect();
   };
   ws.onmessage = (ev) => handleServerMessage(ev.data);
   ws.onclose = () => {

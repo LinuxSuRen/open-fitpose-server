@@ -74,6 +74,30 @@ main {
 
 .counts { display: flex; gap: 10px; }
 
+.action-picker {
+  display: flex;
+  gap: 6px;
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 4px;
+}
+.action-btn {
+  flex: 1;
+  border: none;
+  border-radius: 7px;
+  padding: 8px 0;
+  font-size: 13px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--muted);
+}
+.action-btn.active {
+  background: var(--accent);
+  color: #06222e;
+  font-weight: 600;
+}
+.count-card.dimmed { opacity: 0.35; }
+
 .count-card {
   flex: 1;
   background: var(--panel);

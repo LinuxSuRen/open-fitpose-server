@@ -5,6 +5,7 @@
 package analyze
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/linuxsuren/open-fitpose-server/internal/pose"
@@ -18,6 +19,26 @@ const (
 	TipBodyNotStraight    = "BODY_NOT_STRAIGHT"     // 俯卧撑身体未呈直线
 	TipArmsNotFullyRaised = "ARMS_NOT_FULLY_RAISED" // 开合跳手臂未完全打开
 )
+
+// 动作标识（客户端 select 消息与 analysis 字段名一致）。
+const (
+	ActionSquat       = "squat"
+	ActionPushUp      = "pushup"
+	ActionJumpingJack = "jumping_jack"
+)
+
+// Actions 支持的全部动作。
+var Actions = []string{ActionSquat, ActionPushUp, ActionJumpingJack}
+
+// IsValidAction 判断动作标识是否合法（不含 "all"，all 由协议层归一化为空串）。
+func IsValidAction(action string) bool {
+	for _, a := range Actions {
+		if a == action {
+			return true
+		}
+	}
+	return false
+}
 
 // 动作阶段。
 const (
@@ -38,14 +59,17 @@ type ActionStatus struct {
 }
 
 // Analysis 一帧的分析结果，字段命名 snake_case，跨端契约见 docs/protocol.md。
+// 未参与分析的动作字段为 nil 且不下发（客户端已选择动作时只回所选动作）。
 type Analysis struct {
-	Squat       ActionStatus `json:"squat"`
-	PushUp      ActionStatus `json:"pushup"`
-	JumpingJack ActionStatus `json:"jumping_jack"`
+	Squat       *ActionStatus `json:"squat,omitempty"`
+	PushUp      *ActionStatus `json:"pushup,omitempty"`
+	JumpingJack *ActionStatus `json:"jumping_jack,omitempty"`
 }
 
 // Analyzer 有状态的动作分析器，每个 WebSocket 会话独立一份。
+// selected 为空表示分析全部动作；否则只分析并下发所选动作。
 type Analyzer struct {
+	selected    string
 	squat       actionState
 	pushUp      actionState
 	jumpingJack jjState
@@ -70,13 +94,39 @@ func NewAnalyzer() *Analyzer {
 	}
 }
 
+// Select 设置要分析的动作；空串表示全部动作。无效动作返回错误。
+// 各动作的历史计数保留，切换选择不清零。
+func (a *Analyzer) Select(action string) error {
+	if action != "" && !IsValidAction(action) {
+		return fmt.Errorf("unknown action: %s", action)
+	}
+	a.selected = action
+	return nil
+}
+
+// Selected 返回当前选择，空串表示全部。
+func (a *Analyzer) Selected() string { return a.selected }
+
 // Update 输入一帧姿态，返回分析结果与提示 code 列表（可为空）。
+// 仅分析当前选中的动作（未选择时分析全部）。
 func (a *Analyzer) Update(p pose.Pose) (Analysis, []string) {
 	var tips []string
 	an := Analysis{}
-	an.Squat, tips = a.updateSquat(p, tips)
-	an.PushUp, tips = a.updatePushUp(p, tips)
-	an.JumpingJack, tips = a.updateJumpingJack(p, tips)
+	if a.selected == "" || a.selected == ActionSquat {
+		s, t := a.updateSquat(p, tips)
+		an.Squat = &s
+		tips = t
+	}
+	if a.selected == "" || a.selected == ActionPushUp {
+		pu, t := a.updatePushUp(p, tips)
+		an.PushUp = &pu
+		tips = t
+	}
+	if a.selected == "" || a.selected == ActionJumpingJack {
+		jj, t := a.updateJumpingJack(p, tips)
+		an.JumpingJack = &jj
+		tips = t
+	}
 	return an, tips
 }
 
